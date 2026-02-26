@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+*$py.class
+.env
+.venv
+env/
+venv/
+ENV/
+build/
+dist/
+*.bak
+*.swp
+.idea/
+.vscode/
+.swarm_workspace
+# Keep the template if needed, but usually .swarm_workspace is per-machine

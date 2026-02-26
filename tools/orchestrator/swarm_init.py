@@ -1,8 +1,17 @@
 import os
+import re
+import json
 import subprocess
 import sys
 from pathlib import Path
-import json
+import datetime
+
+
+def _slugify(name: str) -> str:
+    slug = name.lower().strip()
+    slug = re.sub(r"[^a-z0-9_-]", "_", slug)
+    slug = re.sub(r"_+", "_", slug).strip("_")
+    return slug or "default_workspace"
 
 
 def scaffold_swarm_target(target_dir: str):
@@ -31,6 +40,19 @@ def scaffold_swarm_target(target_dir: str):
     if not summary_path.exists():
         with open(summary_path, "w") as f:
             f.write("# Memory Commit Log\n\n_V2 Swarm Origin Signature_\n")
+
+    # --- NAMESPACE PROTOCOL: Write .swarm_workspace identity file ---
+    workspace_id = _slugify(target_path.name)
+    ws_file = target_path / ".swarm_workspace"
+    ws_data = {
+        "workspace_id": workspace_id,
+        "display_name": target_path.name,
+        "created_at": datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "swarm_version": "v2.0",
+    }
+    ws_file.write_text(json.dumps(ws_data, indent=2), encoding="utf-8")
+    print(f"[*] Namespace assigned: '{workspace_id}'  (.swarm_workspace written)")
+    # ----------------------------------------------------------------
 
     print(f"[SUCCESS] V2 Swarm Target Scaffolded Successfully at {target_path}")
     print(f"[NEXT] You may now direct the DeepCode Nanobots to OBSERVE this directory.")

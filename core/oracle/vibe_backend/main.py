@@ -8,6 +8,18 @@ import sys
 import uuid
 import chromadb
 from chromadb.utils import embedding_functions
+from pathlib import Path
+
+# ── Namespace resolver ──────────────────────────────────────────────────────
+_NAMESPACE_DIR = Path(__file__).parent.parent.parent.parent / "core" / "namespace"
+sys.path.insert(0, str(_NAMESPACE_DIR))
+try:
+    from workspace_id import get_workspace_id
+except ImportError:
+
+    def get_workspace_id(cwd=None) -> str:  # type: ignore[misc]
+        return Path(cwd or os.getcwd()).name.lower().replace(" ", "_")
+# ────────────────────────────────────────────────────────────────────────────
 
 # Initialize Vector DB connection for permanent memory hoarding
 CONFIDENCE_THRESHOLD = 0.45
@@ -45,6 +57,12 @@ class SearchRequest(BaseModel):
 
 class ResearchRequest(BaseModel):
     query: str
+    workspace: Optional[str] = Field(
+        default=None,
+        description="Workspace namespace to scope the memory search. "
+        "Omit or set to None to auto-detect from .swarm_workspace. "
+        "Set to '__global__' to search across all workspaces.",
+    )
 
 
 class ResearchResponse(BaseModel):
@@ -199,11 +217,23 @@ async def trigger_research(request: ResearchRequest) -> ResearchResponse:
             detail="Local ChromaDB collection instance offline. Memory bank unavailable.",
         )
 
-    # --- TIER 1: Semantic Cache Check (Cost & Latency Saver) ---
-    cache_results = collection.query(
+    # ── NAMESPACE RESOLUTION ─────────────────────────────────────────────────
+    if request.workspace == "__global__":
+        where_clause = None  # God-Mode: no filter
+    else:
+        workspace_id = request.workspace or get_workspace_id()
+        where_clause = {"workspace": workspace_id}
+    # ─────────────────────────────────────────────────────────────────────────
+
+    # --- TIER 1: Semantic Cache Check (Namespace-Scoped) ---
+    cache_query_kwargs = dict(
         query_texts=[request.query],
-        n_results=1,  # We only need the absolute best match to verify confidence
+        n_results=1,
     )
+    if where_clause:
+        cache_query_kwargs["where"] = where_clause
+
+    cache_results = collection.query(**cache_query_kwargs)
 
     if cache_results["documents"] and cache_results["documents"][0]:
         best_distance = cache_results["distances"][0][0]
@@ -244,7 +274,12 @@ async def trigger_research(request: ResearchRequest) -> ResearchResponse:
     try:
         chunk_ids = [f"mem_{uuid.uuid4().hex[:8]}" for _ in chunks]
         metadatas = [
-            {"query": request.query, "chunk_index": i} for i in range(len(chunks))
+            {
+                "query": request.query,
+                "chunk_index": i,
+                "workspace": workspace_id if where_clause else "__global__",
+            }
+            for i in range(len(chunks))
         ]
 
         collection.upsert(

@@ -16,18 +16,21 @@
 from __future__ import annotations
 
 import ast
+import concurrent.futures
 import hashlib
 import hmac
-import os
 import secrets
 import time
+import threading
+from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Final
 
 # ─── Constants ────────────────────────────────────────────────────────────────
 
-GUARD_VERSION: Final[str] = "v1.0.0"
+GUARD_VERSION: Final[str] = "v1.2.0"
+AUDIT_RING_SIZE: Final[int] = 1000  # Max events held in the in-memory audit ring buffer
 
 # Blacklisted call patterns grouped by threat class.
 # Format: "module.attribute" or "builtin_name"
@@ -58,6 +61,32 @@ DESTRUCTIVE_CALLS: Final[dict[str, list[str]]] = {
         "os.putenv",
         "os.chdir",
     ],
+    "code_injection": [
+        "exec",
+        "eval",
+        "compile",
+        "__import__",
+    ],
+}
+
+# Blacklisted attribute names accessed via getattr() at runtime
+# e.g. getattr(os, 'remove') — we resolve the first arg's module
+DESTRUCTIVE_ATTRS: Final[set[str]] = {
+    "remove",
+    "unlink",
+    "rmdir",
+    "removedirs",
+    "rmtree",
+    "system",
+    "popen",
+    "execv",
+    "execve",
+    "execvp",
+    "run",
+    "Popen",
+    "call",
+    "check_call",
+    "check_output",
 }
 
 WRITE_MODES: Final[set[str]] = {"w", "wb", "w+", "wb+", "a", "ab", "a+", "ab+"}
@@ -165,6 +194,26 @@ class _BoundaryVisitor(ast.NodeVisitor):
     def __init__(self, workspace_root: Path) -> None:
         self._workspace_root = workspace_root
         self.violations: list[Violation] = []
+        # Maps local alias -> canonical module name
+        # e.g.  import shutil as s  =>  {"s": "shutil"}
+        # e.g.  from os import remove as rm  =>  {"rm": "os.remove"}
+        self._aliases: dict[str, str] = {}
+
+    def visit_Import(self, node: ast.Import) -> None:
+        """Track `import X as Y` aliases."""
+        for alias in node.names:
+            local = alias.asname if alias.asname else alias.name
+            self._aliases[local] = alias.name
+        self.generic_visit(node)
+
+    def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
+        """Track `from X import Y as Z` aliases."""
+        module = node.module or ""
+        for alias in node.names:
+            local = alias.asname if alias.asname else alias.name
+            canonical = f"{module}.{alias.name}" if module else alias.name
+            self._aliases[local] = canonical
+        self.generic_visit(node)
 
     def _record(self, node: ast.AST, call: str, threat_class: str) -> None:
         self.violations.append(
@@ -177,19 +226,44 @@ class _BoundaryVisitor(ast.NodeVisitor):
         )
 
     def _resolve_call_name(self, node: ast.Call) -> str | None:
-        """Resolve a Call node into a dotted name string, e.g. 'os.remove'."""
+        """Resolve a Call node into a canonical dotted name, honouring import aliases."""
         func = node.func
         if isinstance(func, ast.Attribute):
             value = func.value
             if isinstance(value, ast.Name):
-                return f"{value.id}.{func.attr}"
+                # Resolve alias: `s.rmtree` where s = shutil
+                module = self._aliases.get(value.id, value.id)
+                return f"{module}.{func.attr}"
             if isinstance(value, ast.Attribute) and isinstance(value.value, ast.Name):
-                return f"{value.value.id}.{value.attr}.{func.attr}"
+                module = self._aliases.get(value.value.id, value.value.id)
+                return f"{module}.{value.attr}.{func.attr}"
         if isinstance(func, ast.Name):
-            return func.id
+            # Resolve direct alias: `from shutil import rmtree as nuke`
+            return self._aliases.get(func.id, func.id)
         return None
 
+    def _check_getattr(self, node: ast.Call) -> None:
+        """Catch getattr(os, 'remove') style dynamic attribute access."""
+        func = node.func
+        if not (isinstance(func, ast.Name) and func.id == "getattr"):
+            return
+        if len(node.args) < 2:
+            return
+        attr_arg = node.args[1]
+        if not isinstance(attr_arg, ast.Constant):
+            return
+        attr_name = str(attr_arg.value)
+        if attr_name in DESTRUCTIVE_ATTRS:
+            self._record(
+                node,
+                f"getattr(..., '{attr_name}')  [dynamic destructive attr access]",
+                "dynamic_bypass",
+            )
+
     def visit_Call(self, node: ast.Call) -> None:
+        # Check getattr first
+        self._check_getattr(node)
+
         name = self._resolve_call_name(node)
         if name:
             for threat_class, calls in DESTRUCTIVE_CALLS.items():
@@ -252,15 +326,97 @@ class SwarmBoundaryGuard:
                         permitted; writes outside this path are flagged.
     """
 
-    def __init__(self, workspace_root: str | Path) -> None:
+    def __init__(self, workspace_root: str | Path, scan_timeout: float = 2.0) -> None:
         self.workspace_root = Path(workspace_root).resolve()
         self._secret_key: str | None = None
         self._scan_count: int = 0
         self._violation_count: int = 0
+        # E3: thread-pool timeout (Windows-safe, no SIGALRM needed)
+        self._scan_timeout: float = scan_timeout
+        self._executor: concurrent.futures.ThreadPoolExecutor = (
+            concurrent.futures.ThreadPoolExecutor(
+                max_workers=4, thread_name_prefix="sbg"
+            )
+        )
+        # E5: in-memory ring-buffer audit trail
+        self._audit_lock: threading.Lock = threading.Lock()
+        self._audit_trail: deque[dict] = deque(maxlen=AUDIT_RING_SIZE)
 
     def set_secret_key(self, key: str) -> None:
         """Set the HMAC secret for capability token verification."""
         self._secret_key = key
+
+    def _run_ast_scan(
+        self,
+        filename: str,
+        code: str,
+    ) -> "_BoundaryVisitor":
+        """Execute AST parse + visitor walk, protected by scan_timeout.
+
+        Uses a thread-pool future so it works on Windows (no SIGALRM).
+        Raises TimeoutError if the scan exceeds self._scan_timeout seconds.
+        """
+
+        def _inner():
+            tree = ast.parse(code, filename=filename)
+            visitor = _BoundaryVisitor(workspace_root=self.workspace_root)
+            visitor.visit(tree)
+            return visitor
+
+        future = self._executor.submit(_inner)
+        try:
+            return future.result(timeout=self._scan_timeout)
+        except concurrent.futures.TimeoutError as e:
+            raise TimeoutError(
+                f"[SwarmBoundaryGuard] AST scan of '{filename}' exceeded "
+                f"{self._scan_timeout}s timeout. Possible complexity bomb — BLOCKING."
+            ) from e
+
+    def _record_audit(
+        self,
+        event: str,
+        filename: str,
+        threat_class: str | None = None,
+        manifest_id: str | None = None,
+    ) -> None:
+        """Append an event to the in-memory audit ring buffer (thread-safe)."""
+        entry = {
+            "event": event,
+            "filename": filename,
+            "threat_class": threat_class,
+            "manifest_id": manifest_id,
+            "timestamp": time.time(),
+            "guard_version": GUARD_VERSION,
+        }
+        with self._audit_lock:
+            self._audit_trail.append(entry)
+
+    def flush_audit_trail(
+        self,
+        chroma_collection=None,
+    ) -> list[dict]:
+        """Return all buffered audit events and optionally flush them to ChromaDB.
+
+        Args:
+            chroma_collection: An active chromadb Collection instance.
+                               When provided, all events are upserted and the
+                               in-memory buffer is cleared.
+        Returns:
+            The list of audit events that were flushed.
+        """
+        with self._audit_lock:
+            events = list(self._audit_trail)
+            if chroma_collection is not None:
+                import uuid
+
+                for ev in events:
+                    chroma_collection.upsert(
+                        ids=[f"audit_{uuid.uuid4().hex[:8]}"],
+                        documents=[f"{ev['event']}:{ev['filename']}"],
+                        metadatas=[ev],
+                    )
+                self._audit_trail.clear()
+        return events
 
     def scan(
         self,
@@ -280,24 +436,24 @@ class SwarmBoundaryGuard:
             SwarmBoundaryViolation: If violations are found and no valid token is provided.
             InvalidCapabilityToken: If a token is provided but is expired or consumed.
             SyntaxError:           If the code string cannot be parsed.
+            TimeoutError:          If AST analysis exceeds scan_timeout seconds.
         """
         self._scan_count += 1
 
-        # Parse —  will raise SyntaxError for unparseable code (also a useful signal)
+        # E3: timeout-protected AST scan (also raises SyntaxError on bad code)
         try:
-            tree = ast.parse(code, filename=filename)
+            visitor = self._run_ast_scan(filename, code)
         except SyntaxError as e:
             raise SyntaxError(
                 f"[SwarmBoundaryGuard] Cannot parse '{filename}': {e}"
             ) from e
 
-        visitor = _BoundaryVisitor(workspace_root=self.workspace_root)
-        visitor.visit(tree)
-
         if not visitor.violations:
-            return  # ✅ Clean
+            self._record_audit("SCAN_PASS", filename)
+            return  # Clean
 
         self._violation_count += len(visitor.violations)
+        threat_names = ",".join({v.threat_class for v in visitor.violations})
 
         # If a capability token is provided, verify it
         if capability_token is not None:
@@ -307,15 +463,18 @@ class SwarmBoundaryGuard:
                     "Call SwarmBoundaryGuard.set_secret_key() first."
                 )
             capability_token.verify(self._secret_key)
-            # Token verified — log the authorized override and allow
             print(
-                f"⚠️  [SwarmBoundaryGuard] AUTHORIZED OVERRIDE: '{filename}' contains "
+                f"[SwarmBoundaryGuard] AUTHORIZED OVERRIDE: '{filename}' contains "
                 f"{len(visitor.violations)} violation(s). Token justification: "
                 f"'{capability_token.justification}'"
+            )
+            self._record_audit(
+                "OVERRIDE_AUTHORIZED", filename, threat_class=threat_names
             )
             return
 
         # No token — hard block
+        self._record_audit("SCAN_BLOCKED", filename, threat_class=threat_names)
         raise SwarmBoundaryViolation(filename=filename, violations=visitor.violations)
 
     def scan_batch(
@@ -375,30 +534,34 @@ class SwarmBoundaryGuard:
 
     @property
     def stats(self) -> dict:
+        with self._audit_lock:
+            audit_size = len(self._audit_trail)
         return {
             "guard_version": GUARD_VERSION,
             "workspace_root": str(self.workspace_root),
             "total_scans": self._scan_count,
             "total_violations_caught": self._violation_count,
+            "scan_timeout_secs": self._scan_timeout,
+            "audit_trail_entries": audit_size,
         }
 
 
 # ─── CLI Self-Test ─────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    print(f"🛡️  SwarmBoundaryGuard {GUARD_VERSION} — Self-Test\n")
+    print(f"[SWARM-GUARD] SwarmBoundaryGuard {GUARD_VERSION} -- Self-Test\n")
 
     guard = SwarmBoundaryGuard(workspace_root=Path.cwd())
 
-    # Test 1: Clean code — should pass silently
+    # Test 1: Clean code -- should pass silently
     clean_code = """
 def add(a: int, b: int) -> int:
     return a + b
 """
     guard.scan("clean_module.py", clean_code)
-    print("✅ Test 1 PASSED: Clean code accepted.")
+    print("[PASS] Test 1: Clean code accepted.")
 
-    # Test 2: Destructive code — should raise SwarmBoundaryViolation
+    # Test 2: Destructive code -- should raise SwarmBoundaryViolation
     rogue_code = """
 import os, shutil
 
@@ -408,11 +571,11 @@ def nuke_workspace():
 """
     try:
         guard.scan("rogue_nanobot.py", rogue_code)
-        print("❌ Test 2 FAILED: Rogue code was not blocked.")
+        print("[FAIL] Test 2: Rogue code was NOT blocked!")
     except SwarmBoundaryViolation as e:
-        print(f"✅ Test 2 PASSED: SwarmBoundaryViolation raised correctly:{e}")
+        print(f"[PASS] Test 2: SwarmBoundaryViolation raised correctly: {e}")
 
-    # Test 3: Destructive code WITH a capability token — should pass
+    # Test 3: Destructive code WITH a valid capability token -- should pass
     guard.set_secret_key("super-secret-32-byte-swarm-key-01")
     token = SwarmCapabilityToken.generate(
         secret_key="super-secret-32-byte-swarm-key-01",
@@ -420,15 +583,15 @@ def nuke_workspace():
     )
     try:
         guard.scan("authorized_cleanup.py", rogue_code, capability_token=token)
-        print("✅ Test 3 PASSED: Authorized override accepted.")
+        print("[PASS] Test 3: Authorized override accepted.")
     except (SwarmBoundaryViolation, InvalidCapabilityToken) as e:
-        print(f"❌ Test 3 FAILED: {e}")
+        print(f"[FAIL] Test 3: {e}")
 
-    # Test 4: Reuse a consumed token — should raise InvalidCapabilityToken
+    # Test 4: Reuse a consumed token -- should raise InvalidCapabilityToken
     try:
         guard.scan("second_run.py", rogue_code, capability_token=token)
-        print("❌ Test 4 FAILED: Consumed token was reused.")
+        print("[FAIL] Test 4: Consumed token was reused!")
     except InvalidCapabilityToken as e:
-        print(f"✅ Test 4 PASSED: Consumed token rejected: {e}")
+        print(f"[PASS] Test 4: Consumed token rejected: {e}")
 
-    print(f"\n📊 Guard Stats: {guard.stats}")
+    print(f"\n[STATS] Guard Stats: {guard.stats}")
