@@ -1,0 +1,11 @@
+[project]
+name = "v2-test"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "asyncio>=4.0.0",
+    "httpx>=0.28.1",
+    "pytest>=9.0.2",
+]
