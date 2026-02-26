@@ -1,0 +1,31 @@
+name: Fractal Swarm Self-Healing CI
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+jobs:
+  test-and-heal:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install Dependencies
+        run: pip install pytest httpx
+
+      - name: Run Pytest Suite
+        id: run_tests
+        run: |
+          pytest || echo "TEST_FAILED=true" >> $GITHUB_ENV
+
+      - name: Trigger Fractal Swarm Auto-Heal
+        if: env.TEST_FAILED == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "⚠️ CI Failure Detected in PR."
+          echo "🧬 Deploying Fractal Swarm Auto-Heal nanobots..."
+          python tools/ci/auto_heal.py

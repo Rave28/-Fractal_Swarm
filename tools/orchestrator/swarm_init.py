@@ -6,21 +6,21 @@ import json
 
 
 def scaffold_swarm_target(target_dir: str):
-    print(f"🚀 Initializing V2 Fractal Swarm payload at: {target_dir}")
+    print(f"[*] Initializing V2 Fractal Swarm payload at: {target_dir}")
     target_path = Path(target_dir).resolve()
     target_path.mkdir(parents=True, exist_ok=True)
 
     # Require uv for ultra-fast, clean Python 3.13 venvs
     uv_bin = r"C:\Users\Admin\AppData\Local\Programs\Jan\uv.exe"
     if not os.path.exists(uv_bin):
-        print(f"❌ Critical requirement missing: uv binary not found at {uv_bin}")
+        print(f"[ERROR] Critical requirement missing: uv binary not found at {uv_bin}")
         sys.exit(1)
 
     venv_path = target_path / ".venv"
-    print(f"🧬 Bootstrapping Python 3.13 Virtual Environment...")
+    print(f"[*] Bootstrapping Python 3.13 Virtual Environment...")
     subprocess.run([uv_bin, "venv", "-p", "3.13", str(venv_path)], check=True)
 
-    print(f"📦 Injecting base Swarm dependencies (PyTest, AsyncIO patterns)...")
+    print(f"[*] Injecting base Swarm dependencies (PyTest, AsyncIO patterns)...")
     reqs = ["pytest", "anyio"]
     subprocess.run(
         [uv_bin, "pip", "install", *reqs, "--python", str(venv_path)], check=True
@@ -32,8 +32,8 @@ def scaffold_swarm_target(target_dir: str):
         with open(summary_path, "w") as f:
             f.write("# Memory Commit Log\n\n_V2 Swarm Origin Signature_\n")
 
-    print(f"✅ V2 Swarm Target Scaffolded Successfully at {target_path}")
-    print(f"➡️  You may now direct the DeepCode Nanobots to OBSERVE this directory.")
+    print(f"[SUCCESS] V2 Swarm Target Scaffolded Successfully at {target_path}")
+    print(f"[NEXT] You may now direct the DeepCode Nanobots to OBSERVE this directory.")
 
 
 if __name__ == "__main__":
