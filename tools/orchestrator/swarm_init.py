@@ -26,10 +26,10 @@ def scaffold_swarm_target(target_dir: str):
         sys.exit(1)
 
     venv_path = target_path / ".venv"
-    print(f"[*] Bootstrapping Python 3.13 Virtual Environment...")
+    print("[*] Bootstrapping Python 3.13 Virtual Environment...")
     subprocess.run([uv_bin, "venv", "-p", "3.13", str(venv_path)], check=True)
 
-    print(f"[*] Injecting base Swarm dependencies (PyTest, AsyncIO patterns)...")
+    print("[*] Injecting base Swarm dependencies (PyTest, AsyncIO patterns)...")
     reqs = ["pytest", "anyio"]
     subprocess.run(
         [uv_bin, "pip", "install", *reqs, "--python", str(venv_path)], check=True
@@ -47,7 +47,9 @@ def scaffold_swarm_target(target_dir: str):
     ws_data = {
         "workspace_id": workspace_id,
         "display_name": target_path.name,
-        "created_at": datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "created_at": datetime.datetime.now(datetime.UTC).strftime(
+            "%Y-%m-%dT%H:%M:%SZ"
+        ),
         "swarm_version": "v2.0",
     }
     ws_file.write_text(json.dumps(ws_data, indent=2), encoding="utf-8")
@@ -55,7 +57,9 @@ def scaffold_swarm_target(target_dir: str):
     # ----------------------------------------------------------------
 
     print(f"[SUCCESS] V2 Swarm Target Scaffolded Successfully at {target_path}")
-    print(f"[NEXT] You may now direct the DeepCode Nanobots to OBSERVE this directory.")
+    print(
+        "[*] [NEXT] You may now direct the DeepCode Nanobots to OBSERVE this directory."
+    )
 
 
 if __name__ == "__main__":
