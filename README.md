@@ -1,12 +1,21 @@
 # 🌌 FRACTAL SWARM v1.2.0
 
-**Stop babysitting your AI. Build a cryptographically sealed, auto-healing software factory on your local machine.**
+**Stop babysitting your AI. Build a cryptographically sealed, auto-healing
+software factory on your local machine.**
 
-[![AEGIS Guard](https://img.shields.io/badge/AEGIS_Guard-v1.2.0-red.svg)](#) [![Stress Test](https://img.shields.io/badge/Stress_Test-44%2F44_PASSED-success.svg)](#) [![Protocol](https://img.shields.io/badge/A2A_Protocol-v2.0-blue.svg)](#)
+![AEGIS Guard](https://img.shields.io/badge/AEGIS_Guard-v1.2.0-red.svg)
+![Stress Test](https://img.shields.io/badge/Stress_Test-44%2F44_PASSED-success.svg)
+![Protocol](https://img.shields.io/badge/A2A_Protocol-v2.0-blue.svg)
 
-Current AI coding agents are glorified auto-complete tools. They suffer from fatal flaws: they hallucinate context across different projects, they blindly overwrite established architecture, and they cannot be trusted with autonomous execution because they might delete your root directory.
+Current AI coding agents are glorified auto-complete tools. They suffer from
+fatal flaws: they hallucinate context across different projects, they blindly
+overwrite established architecture, and they cannot be trusted with autonomous
+execution because they might delete your root directory.
 
-**Fractal Swarm v1.2.0 solves this.** It is a locally hosted, multi-agent Operating System driven by an **OODA Loop (Observe, Orient, Decide, Act)**. It governs its own logic via strict AST boundaries, ingests the web autonomously, and visualizes its decision-making in real-time.
+**Fractal Swarm v1.2.0 solves this.** It is a locally hosted, multi-agent
+Operating System driven by an **OODA Loop (Observe, Orient, Decide, Act)**.
+It governs its own logic via strict AST boundaries, ingests the web
+autonomously, and visualizes its decision-making in real-time.
 
 ---
 
@@ -50,21 +59,23 @@ Fractal Swarm doesn't just work in the shadows. It includes a decoupled, glassmo
 
 Transform your standard machine into a Sovereign AI Node in under 3 minutes.
 
-**1. Clone the Hive**
+### 1. Clone the Hive
 
 ```bash
 git clone https://github.com/Rave28/-Fractal_Swarm.git
 cd -Fractal_Swarm
 ```
 
-**2. Bind the Swarm (Windows)**
+### 2. Bind the Swarm (Windows)
+
 Open an Administrator PowerShell to register the Swarm commands to your OS profile:
 
 ```powershell
 .\setup_global_swarm.ps1
 ```
 
-**3. Boot the Oracle & Dashboard**
+### 3. Boot the Oracle & Dashboard
+
 Silently spin up the FastAPI Knowledge Broker, ChromaDB, and the React HUD:
 
 ```powershell
@@ -80,6 +91,36 @@ Open any blank directory on your machine and initialize it. This locks the works
 cd C:\Projects\my_new_startup
 swarm-init .
 ```
+
+---
+
+## 💡 Best Practices & War Stories: Operating the Swarm
+
+Fractal Swarm is an autonomous factory, not an autocomplete plugin. To achieve maximum lethality and zero hallucinations, adhere to these operational doctrines derived directly from our internal deployment cycles:
+
+**1. Respect the AST Boundary Guard (The `venv` Incident)**
+We learned this the hard way: if you give an LLM unconstrained terminal access, it will eventually hallucinate a destructive command. During our alpha phase, a nanobot hallucinated a `Remove-Item .venv` command and nuked its own virtual environment. That is why the **AEGIS AST Guard** exists. If the Sovereign Dashboard flashes a red `SCAN_BLOCKED` alert, **do not bypass it blindly**. Read the Security Audit Feed, understand why the nanobot hallucinated the filesystem deletion, and refine your prompt.
+
+**2. The 50-Tool Cognitive Limit (Keep MCP Lean)**
+Do not bloat your Model Context Protocol (MCP) server list. At one point, we loaded the Swarm with 72 active tools, which caused severe latency spikes and "agent paralysis" as the LLM struggled to choose the right context. We surgically pruned the engine down to a lean core (~45 tools). Give the Swarm exactly what it needs (e.g., `uv`, `ruff`, `deepcode`, `mybrain`) and nothing more.
+
+**3. Feed the Oracle Before You Build**
+If you are building an app with a new framework or API, do not let the AI guess the syntax from its outdated base weights. Fire up the **Nightcrawler Daemon**, point it at the official documentation (like we did with the complex `tokio` Rust async docs), and let it burn the vector blueprints into your ChromaDB first. *A fed Swarm does not hallucinate.*
+
+**4. Let the Swarm Clean Your House (The Cache Poisoning Incident)**
+Modern build pipelines are brittle. During our frontend scaffolding phase, Vite v7 continuously crashed because a legacy `tailwind.config.js` file was silently poisoning the PostCSS cache. The Swarm's `Observe` phase successfully mapped the directory, identified the collision, and autonomously deleted the stale config. Let the nanobots map and eradicate stale architecture before you force them to write new code.
+
+**5. Strict Workspace Isolation**
+Never run multiple disconnected projects inside the same root directory. The Swarm relies on the `.swarm_workspace` file to filter its ChromaDB queries. Keep your projects in dedicated folders so the LRU-cached Semantic Namespacer can guarantee zero cross-project pollution.
+
+**6. Beware the Minified Payload (The OOM Threat)**
+During our V2 stress tests, feeding the vector database a single 50,000-character line of minified code with no spaces bypassed standard chunkers and caused catastrophic Out-Of-Memory (OOM) failures. We mathematically bounded this by engineering the `force_split` byte-boundary fallback. The Nightcrawler now safely shatters binary blobs and minified JS, but remain mindful of the raw data structures you unleash the daemon upon.
+
+**7. Architect, Don't Autocomplete**
+Do not use `swarm-init` to write single functions. Write "God-Mode Prompts." Give the Swarm massive architectural intent (e.g., *"Scaffold a decoupled FastAPI backend and Vite frontend with Redis Pub/Sub, JWT Auth, and an O(1) token-bucket rate limiter"*). Let the OODA loop and Sequential Thinking nodes figure out the micro-logic.
+
+**8. Trust the Auto-Healer**
+When your CI/CD pipeline breaks, resist the urge to immediately open the IDE. Let the `fractal_heal.yml` action run. The Swarm is designed to read the traceback, reason through the logic, clear its own AST guard, and push its own hotfixes. Let the machine maintain the machine.
 
 ---
 
