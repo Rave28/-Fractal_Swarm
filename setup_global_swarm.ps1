@@ -8,7 +8,7 @@ $SwarmBlock = @"
 # ==========================================
 # 🌌 FRACTAL SWARM: GLOBAL OS INTEGRATION
 # ==========================================
-`$GLOBAL_SWARM_ROOT = "D:\Temp\Fractal_Swarm"
+`$GLOBAL_SWARM_ROOT = "$PSScriptRoot"
 `$SERVER_ROOT = "`$GLOBAL_SWARM_ROOT\server"
 `$QUERY_TOOL_ROOT = "`$GLOBAL_SWARM_ROOT\tools\query"
 
