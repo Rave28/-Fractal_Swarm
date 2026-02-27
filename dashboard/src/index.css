@@ -36,6 +36,34 @@
     color: var(--stat-color, white);
   }
 
+  /* Status Variants */
+  .status-blocked {
+    --event-bg: rgba(239, 68, 68, 0.08);
+    background: var(--event-bg);
+  }
+  .status-pass {
+    --event-bg: rgba(16, 185, 129, 0.04);
+    background: var(--event-bg);
+  }
+  .status-override {
+    --event-bg: rgba(245, 158, 11, 0.06);
+    background: var(--event-bg);
+  }
+
+  .stat-blocked {
+    --stat-color: #ef4444;
+  }
+  .stat-pass {
+    --stat-color: #10b981;
+  }
+  .stat-override {
+    --stat-color: #f59e0b;
+  }
+
+  .stat-card.glow {
+    box-shadow: 0 0 12px rgba(239, 68, 68, 0.2);
+  }
+
   .audit-event-row {
     background: var(--event-bg, transparent);
     border-color: var(--event-border, rgba(255, 255, 255, 0.06));

@@ -171,11 +171,9 @@ export default function SecurityAuditFeed() {
           <div className="w-16 h-1 bg-white/5 rounded-full overflow-hidden">
             <div
               className="capacity-bar-fill"
-              style={
-                {
-                  "--progress-width": `${Math.min(100, ((data?.total_events ?? 0) / (data?.audit_capacity ?? 1000)) * 100)}%`,
-                } as React.CSSProperties
-              }
+              style={{
+                width: `${Math.min(100, ((data?.total_events ?? 0) / (data?.audit_capacity ?? 1000)) * 100)}%`,
+              }}
             />
           </div>
         </div>
@@ -187,26 +185,20 @@ export default function SecurityAuditFeed() {
           {
             label: "Blocked",
             val: counts.BLOCK,
-            color: "#ef4444",
+            type: "blocked",
             glow: counts.BLOCK > 0,
           },
           {
             label: "Overrides",
             val: counts.OVERRIDE,
-            color: "#f59e0b",
+            type: "override",
             glow: false,
           },
-          { label: "Clean", val: counts.PASS, color: "#10b981", glow: false },
-        ].map(({ label, val, color, glow }) => (
+          { label: "Clean", val: counts.PASS, type: "pass", glow: false },
+        ].map(({ label, val, type, glow }) => (
           <div
             key={label}
-            className="stat-card"
-            style={
-              {
-                "--stat-glow": glow && val > 0 ? `0 0 12px ${color}33` : "none",
-                "--stat-color": color,
-              } as React.CSSProperties
-            }
+            className={`stat-card stat-${type} ${glow && val > 0 ? "glow" : ""}`}
           >
             <div className="text-2xl font-mono font-bold stat-value">{val}</div>
             <div className="text-xs text-slate-500 mt-0.5">{label}</div>
@@ -257,21 +249,11 @@ export default function SecurityAuditFeed() {
           return (
             <div
               key={key}
-              className={`rounded-xl px-4 py-2.5 border flex items-start gap-3 transition-shadow transition-transform duration-300 audit-event-row ${
-                isNew ? "scale-[1.01] opacity-100" : "opacity-90"
+              className={`rounded-xl px-4 py-2.5 border flex items-start gap-3 transition-all duration-300 audit-event-row status-${ev.event === "SCAN_BLOCKED" ? "blocked" : ev.event === "OVERRIDE_AUTHORIZED" ? "override" : "pass"} ${
+                isNew
+                  ? "scale-[1.01] opacity-100 border-white/20 shadow-lg"
+                  : "opacity-90 border-white/5"
               }`}
-              style={
-                {
-                  "--event-bg": cfg.bg,
-                  "--event-border": isNew
-                    ? cfg.dot
-                        .replace("bg-", "")
-                        .replace("-400", "")
-                        .replace("-500", "")
-                    : "rgba(255,255,255,0.06)",
-                  "--event-shadow": isNew ? `0 0 8px ${cfg.bg}` : "none",
-                } as React.CSSProperties
-              }
             >
               {/* Status dot */}
               <div className="mt-0.5 flex-shrink-0">

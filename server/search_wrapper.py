@@ -11,7 +11,7 @@ SWARM_ROOT = os.path.abspath(os.path.join(CURRENT_DIR, ".."))
 BRAIN_PATH = os.path.join(SWARM_ROOT, "core", "brain", "myBrAIn")
 
 sys.path.append(BRAIN_PATH)
-from core.db import BrainDB
+from core.db import BrainDB  # noqa: E402
 
 
 def main():
