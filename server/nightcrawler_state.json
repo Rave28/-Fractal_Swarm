@@ -1,0 +1,10 @@
+{
+  "status": "HUNT COMPLETE",
+  "target": "https://tokio.rs/tokio/tutorial",
+  "workspace": "tokio_docs",
+  "pages_visited": 18,
+  "chunks_ingested": 243,
+  "errors": 0,
+  "elapsed_seconds": 58.5,
+  "last_update": "2026-02-26T23:26:39Z"
+}

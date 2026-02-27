@@ -9,8 +9,8 @@ $SwarmBlock = @"
 # 🌌 FRACTAL SWARM: GLOBAL OS INTEGRATION
 # ==========================================
 `$GLOBAL_SWARM_ROOT = "D:\Temp\Fractal_Swarm"
-`$VIBE_BACKEND = "D:\Temp\vibe_backend"
-`$KNOWLEDGE_BROKER = "D:\Temp\knowledge_broker"
+`$SERVER_ROOT = "`$GLOBAL_SWARM_ROOT\server"
+`$QUERY_TOOL_ROOT = "`$GLOBAL_SWARM_ROOT\tools\query"
 
 # Initialize a new Swarm Workspace anywhere
 function Initialize-SwarmWorkspace {
@@ -25,17 +25,19 @@ function Initialize-SwarmWorkspace {
 # Interrogate the Oracle from any directory
 function Query-SovereignOracle {
     param([Parameter(Mandatory=`$true)][string]`$Query)
-    # Using myBrAIn venv to run the query script
-    & "D:\Temp\myBrAIn\venv\Scripts\python.exe" "`$KNOWLEDGE_BROKER\query_brain.py" "`$Query"
+    # Using uv run for zero-configuration execution
+    Set-Location -Path "`$QUERY_TOOL_ROOT"
+    uv run python query_brain.py "`$Query"
+    Pop-Location
 }
 
 # Boot the background Oracle daemon
 function Start-SwarmOracle {
     Write-Host "🧠 Booting Sovereign Oracle Daemon on port 8000..." -ForegroundColor Magenta
-    Start-Process -WindowStyle Hidden -FilePath "C:\Users\Admin\AppData\Local\Programs\Jan\uv.exe" -ArgumentList "run uvicorn main:app --host 127.0.0.1 --port 8000" -WorkingDirectory "`$VIBE_BACKEND"
+    Start-Process -WindowStyle Hidden -FilePath "uv" -ArgumentList "run uvicorn main:app --host 127.0.0.1 --port 8000" -WorkingDirectory "`$SERVER_ROOT"
     
     Write-Host "🌙 Waking Nightcrawler continuous ingestion daemon..." -ForegroundColor DarkMagenta
-    Start-Process -WindowStyle Hidden -FilePath "C:\Users\Admin\AppData\Local\Programs\Jan\uv.exe" -ArgumentList "run python nightcrawler.py" -WorkingDirectory "`$VIBE_BACKEND"
+    Start-Process -WindowStyle Hidden -FilePath "uv" -ArgumentList "run python nightcrawler.py" -WorkingDirectory "`$SERVER_ROOT"
 }
 
 # Aliases for lightning-fast execution
