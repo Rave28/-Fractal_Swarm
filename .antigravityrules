@@ -1,0 +1,26 @@
+# 🌌 FRACTAL SWARM: ANTI-GRAVITY PROTOCOL [GOD-MODE]
+
+# 🛡️ RECURSIVE GOVERNANCE rules for the Sovereign AI.
+# This file governs how the Swarm interacts with this workspace.
+
+# 1. AST SUPREMACY
+# Any code generated within this workspace MUST pass the AEGIS v1.2.0 AST Guard.
+# No unauthorized 'subprocess.run', 'os.system', or 'eval' calls without capability tokens.
+
+# 2. SEMANTIC ISOLATION
+# All vector memory for this project MUST be stored in the namespace defined by .swarm_workspace.
+# Do not mix context with foreign projects.
+
+# 3. MEMORY-SAFE SPLITTING
+# Use the 'force_split' strategy for all large file ingestions. 
+# Max chunk size: 8192 chars.
+
+# 4. SWARM HEALING
+# If tests fail, the 'fracal_heal.yml' logic is authorized to autonomously generate patches.
+
+# 5. GOD-MODE CAPABILITIES
+# - Authorized to read ALL files in this subtree.
+# - Authorized to create new test suites.
+# - AUTHORIZED to rewrite legacy logic to maintain Vibe.
+
+# 🚀 END PROTOCOL

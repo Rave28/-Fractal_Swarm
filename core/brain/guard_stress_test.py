@@ -13,7 +13,6 @@ Run: python guard_stress_test.py
 import sys
 import time
 import textwrap
-import traceback
 from pathlib import Path
 
 # Import the guard from the same package
@@ -23,7 +22,6 @@ from swarm_boundary_guard import (
     SwarmCapabilityToken,
     SwarmBoundaryViolation,
     InvalidCapabilityToken,
-    GUARD_VERSION,
 )
 
 # ─── Test Runner ──────────────────────────────────────────────────────────────
